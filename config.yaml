@@ -1,0 +1,19 @@
+mqtt:
+  server: "xx.xx.xx.xx" #Serwer MQTT
+  port: 1883
+  username: "user"
+  password: "pass"
+sterbox:
+  name: "sterbox2"
+  url: "xx.xx.xx.xx" #IP Sterbox
+  password: "1234" #Hasło Sterbox alias
+  interval: 1 #Co ile czytamy
+debug: true  # ustawienie false wyłączy wyświetlanie informacji na konsoli
+variables:
+  zmienne1:
+    tempk: "@gca?temp_k&"
+    stat24dn: "@gcd?stat24dn&"
+    stat24up: "@gcd?stat24up&"
+#  zmienne2:
+#    RO21: "@gcd?RO21up&"
+#    RO22: "@gcd?RO22up&"
