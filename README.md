@@ -17,42 +17,42 @@ Program służy jako pomost (gateway) pomiędzy urządzeniem Sterbox a systemem 
 
 2. Zainstaluj wymagane biblioteki Python przy pomocy apt:
 
-sudo apt update
-sudo apt install python3-pip
-sudo apt install python3-requests python3-paho-mqtt python3-yaml
+- sudo apt update
+- sudo apt install python3-pip
+- sudo apt install python3-requests python3-paho-mqtt python3-yaml
 
 Opcjonalnie, jeśli chcesz uruchamiać skrypt jako usługę systemową, zainstaluj:
-sudo apt install python3-systemd
+- sudo apt install python3-systemd
 
 ## Konfiguracja
 
 Program konfiguruje się poprzez plik `config.yml`. Oto opis poszczególnych sekcji:
 
 ### Konfiguracja MQTT:
-
+```yaml
 mqtt:
   server: "10.1.0.25"    # Adres IP brokera MQTT
   port: 1883             # Port MQTT (domyślnie 1883)
   username: "mqtt"       # Nazwa użytkownika MQTT
   password: "mqtt1234"   # Hasło MQTT
-
+```
 
 ### Konfiguracja Sterbox:
-
+```yaml
 sterbox:
   name: "sterbox2"       # Nazwa urządzenia Sterbox oraz topic
   url: "xxxxxxxxxx"      # Adres IP urządzenia Sterbox
   password: "1234"       # Hasło do urządzenia Sterbox
   interval: 1            # Interwał odczytu danych (w sekundach)
-
+```
 
 ### Ustawienia debugowania:
-
+```yaml
 debug: false             # Wyłączenie (false) lub włączenie (true) informacji debugowania
-
+```
 
 ### Konfiguracja zmiennych:
-
+```yaml
 variables:
   parm1:
     tempk: "@gca?temp_k&"
@@ -61,7 +61,7 @@ variables:
   parm2:
     RO21: "@gcd?RO21up&"
     RO22: "@gcd?RO22up&"
-
+```
 
 ## Jak uruchomić
 
@@ -69,8 +69,9 @@ variables:
 2. Dostosuj parametry w pliku konfiguracyjnym do swojego środowiska
 3. Uruchom program komendą:
 
+```bash
 python3 sterbox_mqtt.py
-
+```
 
 ## Działanie programu
 
