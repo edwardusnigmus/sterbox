@@ -112,11 +112,9 @@ Przejrzyj logi z włączonym trybem debug :)
 
 
 
----------------
 Automatyczne rozpoznawanie typu zmiennej na podstawie '@gca' lub '@gcd' w zapytaniu
 Dla zmiennych cyfrowych (@gcd) zwracane są wartości całkowite (0 lub 1)
 Dla zmiennych analogowych (@gca) zwracane są wartości zmiennoprzecinkowe
----------------
 
 Program będzie wyświetlać informacje na konsoli tylko wtedy, gdy debug jest ustawione na true. Jedynie krytyczne błędy (np. przerwanie programu przez użytkownika) będą zawsze wyświetlane.
 
