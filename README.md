@@ -1,5 +1,5 @@
 # Sterbox MQTT Gateway
-## Opis projektu
+# Opis projektu
 
 Program służy jako pomost (gateway) pomiędzy urządzeniem Sterbox a systemem MQTT. Umożliwia odczyt danych z urządzenia Sterbox i publikowanie ich do brokera MQTT, co pozwala na integrację z systemami automatyki domowej.
 
