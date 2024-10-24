@@ -43,7 +43,8 @@ sterbox:
   name: "sterbox2"       # Nazwa urządzenia Sterbox oraz topic
   url: "xxxxxxxxxx"      # Adres IP urządzenia Sterbox
   password: "1234"       # Hasło do urządzenia Sterbox
-  interval: 1            # Interwał odczytu danych (w sekundach)
+  interval: 1            # Jest to główny cykl programu
+  rest_delay: 1          # Jest to przerwa między kolejnymi zapytaniami REST do urządzenia
 ```
 
 ### Ustawienia debugowania:
