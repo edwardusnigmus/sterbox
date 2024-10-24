@@ -26,7 +26,7 @@ class SterboxClient:
         self.base_url = f"http://{self.config['sterbox']['url']}/"
         self.auth_url = f"{self.base_url}u7.cgi?q0={self.config['sterbox']['password']}"
         
-        # Inicjalizacja liczników błędów dla wszystkich zmiennych ze wszystkich sekcji
+        # Inicjalizacja liczników błędów dla wszystkich zmiennych
         self.error_counters = {}
         for section in self.config['variables'].values():
             for var in section:
@@ -34,8 +34,8 @@ class SterboxClient:
                 
         self.MAX_RETRIES = 3
         self.auth_retry_delay = 1
-        self.current_section_index = 0
-        self.debug = self.config.get('debug', False)  # Domyślnie False jeśli nie ma w konfiguracji
+        self.rest_delay = self.config['sterbox'].get('rest_delay', 0.1)
+        self.debug = self.config.get('debug', False)
         
     def log(self, message: str):
         """Wyświetla wiadomość tylko jeśli debug jest włączony"""
@@ -161,39 +161,48 @@ class SterboxClient:
                 self.log(f"Retrying MQTT connection in {self.auth_retry_delay} seconds...")
                 time.sleep(self.auth_retry_delay)
 
-    def _query_section(self, section_name: str, section_data: dict) -> Optional[Dict[str, Any]]:
-        try:
-            response = self.session.get(self.base_url + section_data['query'], timeout=5)
-            
-            if response.status_code != 200:
-                self.log(f"Error: HTTP status code {response.status_code}")
-                self._wait_for_authentication()
-                return None
+    def _query_all_sections(self) -> Dict[str, Any]:
+        """Pobiera dane ze wszystkich sekcji i zwraca spłaszczony słownik"""
+        flattened_data = {}
+        
+        for section_name, section_data in self.sections.items():
+            try:
+                # Dodaj opóźnienie przed każdym zapytaniem (oprócz pierwszego)
+                if flattened_data:  # jeśli nie jest to pierwsze zapytanie
+                    time.sleep(self.rest_delay)
                 
-            data_dict = self._parse_response(response.text, section_data['variables'])
-            
-            if data_dict:
-                json_data = json.dumps(data_dict)
-                self.mqtt_client.publish(f"{self.config['sterbox']['name']}/{section_name}", json_data)
-                self.log(f"Sent data for section {section_name}: {json_data}")
-                return data_dict
-            else:
-                self.log(f"No valid data to send for section {section_name}")
-                return None
+                # Zmierz czas zapytania
+                request_start = time.time()
                 
-        except Exception as e:
-            self.log(f"Error during data retrieval for section {section_name}: {e}")
-            return None
+                response = self.session.get(self.base_url + section_data['query'], timeout=5)
+                
+                request_time = time.time() - request_start
+                self.log(f"REST request for {section_name} took {request_time:.3f} seconds")
+                
+                if response.status_code != 200:
+                    self.log(f"Error: HTTP status code {response.status_code}")
+                    self._wait_for_authentication()
+                    return {}
+                    
+                data_dict = self._parse_response(response.text, section_data['variables'])
+                if data_dict:
+                    # Dodaj dane bezpośrednio do głównego słownika zamiast zagnieżdżać
+                    flattened_data.update(data_dict)
+                    
+            except Exception as e:
+                self.log(f"Error during data retrieval for section {section_name}: {e}")
+                return {}
+                
+        return flattened_data
 
     def run(self):
-        """Główna pętla programu"""
+        """Główna zoptymalizowana pętla programu"""
         self.log("Starting program...")
         self._connect_mqtt()
         interval = self.config['sterbox'].get('interval', 1)
         
-        self.log(f"Program started. Reading sections every {interval} seconds...")
-        for section_name, section_data in self.sections.items():
-            self.log(f"Section {section_name} query: {section_data['query']}")
+        self.log(f"Program started. Reading all sections every {interval} seconds...")
+        self.log(f"REST delay between sections: {self.rest_delay} seconds")
         
         # Początkowe uwierzytelnienie
         self._wait_for_authentication()
@@ -201,19 +210,21 @@ class SterboxClient:
         while True:
             start_time = time.time()
             
-            # Iteracja przez sekcje
-            for section_name, section_data in self.sections.items():
-                section_start_time = time.time()
-                
-                result = self._query_section(section_name, section_data)
-                if result is None:
-                    self._wait_for_authentication()
-                
-                # Oblicz czas do następnego odpytania
-                section_elapsed_time = time.time() - section_start_time
-                section_sleep_time = max(0, interval - section_elapsed_time)
-                if section_sleep_time > 0:
-                    time.sleep(section_sleep_time)
+            # Pobierz spłaszczone dane
+            combined_data = self._query_all_sections()
+            
+            # Jeśli mamy dane, wyślij je przez MQTT
+            if combined_data:
+                json_data = json.dumps(combined_data)
+                # Publikuj w głównym temacie bez dopisku /all
+                self.mqtt_client.publish(self.config['sterbox']['name'], json_data)
+                self.log(f"Sent combined data: {json_data}")
+            
+            # Oblicz czas do następnego odpytania
+            elapsed_time = time.time() - start_time
+            sleep_time = max(0, interval - elapsed_time)
+            if sleep_time > 0:
+                time.sleep(sleep_time)
 
 def main():
     client = SterboxClient()
