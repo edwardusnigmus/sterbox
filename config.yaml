@@ -1,19 +1,20 @@
 mqtt:
-  server: "xx.xx.xx.xx" #Serwer MQTT
+  server: "10.1.0.25"
   port: 1883
-  username: "user"
-  password: "pass"
+  username: "mqtt"
+  password: "mqtt1234"
 sterbox:
   name: "sterbox2"
-  url: "xx.xx.xx.xx" #IP Sterbox
-  password: "1234" #Hasło Sterbox alias
-  interval: 1 #Co ile czytamy
+  url: "10.1.0.181"
+  password: "1234"
+  interval: 1
+  rest_delay: 1  # opóźnienie 1000ms między zapytaniami REST, można zmieniać
 debug: true  # ustawienie false wyłączy wyświetlanie informacji na konsoli
 variables:
-  zmienne1:
+  parm1:
     tempk: "@gca?temp_k&"
     stat24dn: "@gcd?stat24dn&"
     stat24up: "@gcd?stat24up&"
-#  zmienne2:
-#    RO21: "@gcd?RO21up&"
-#    RO22: "@gcd?RO22up&"
+  parm2:
+    RO21: "@gcd?RO21up&"
+    RO22: "@gcd?RO22up&"
