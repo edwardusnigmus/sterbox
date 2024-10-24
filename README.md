@@ -120,15 +120,13 @@ Dla zmiennych analogowych (@gca) zwracane są wartości zmiennoprzecinkowe
 
 Program będzie wyświetlać informacje na konsoli tylko wtedy, gdy debug jest ustawione na true. Jedynie krytyczne błędy (np. przerwanie programu przez użytkownika) będą zawsze wyświetlane.
 
-
 Obsługa wielu sekcji zmiennych w konfiguracji
 Każda sekcja jest odpytywana osobno
 Po każdym odpytaniu sekcji następuje wysyłka MQTT
-Dane z każdej sekcji są wysyłane na osobny topic MQTT (np. sterbox2/zmienna1, sterbox2/zmienna2)
-Zachowany został interwał 1s między odpytaniami
+Dane z każdej sekcji są łączone w jeden topic MQTT
 Program zachowuje pełną funkcjonalność obsługi błędów i ponownego uwierzytelniania
 
-Program będzie odpytywał sekcje po kolei, wysyłając dane MQTT po każdym udanym odpytaniu, zachowując zadany interwał między odpytaniami.
+Program będzie odpytywał sekcje po kolei, wysyłając dane MQTT po każdym udanym odpytaniu.
 
 -------------------
 
