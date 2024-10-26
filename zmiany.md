@@ -1,3 +1,16 @@
+v.1.0.2
+Główne zmiany w stosunku do poprzedniej wersji:
+Zoptymalizowana logika czekania na kolejne zapytania:
+Nie ma już zbędnego opóźnienia po ostatniej sekcji
+Program czeka tylko minimalny wymagany czas przed następnym cyklem
+Zoptymalizowana struktura pętli głównej:
+Wcześniejsze sprawdzanie liczby sekcji
+Bardziej efektywne zarządzanie czasem między publikacjami
+
+Poprawiona obsługa interwałów:
+Precyzyjniejsze obliczanie czasu do następnej publikacji
+Minimalizacja opóźnień między cyklami odczytu
+
 v.1.0.1
 
 Główne zmiany, które zostały wprowadzone:
