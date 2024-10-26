@@ -1,3 +1,4 @@
+# sterbox_client.py
 #!/usr/bin/env python3
 import requests
 import json
@@ -8,6 +9,8 @@ from pathlib import Path
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from typing import Dict, Any, Optional
+from urllib3.exceptions import ProtocolError
+from requests.exceptions import RequestException
 
 class SterboxClient:
     def __init__(self, config_path: str = None):
@@ -36,6 +39,9 @@ class SterboxClient:
         self.auth_retry_delay = 1
         self.rest_delay = self.config['sterbox'].get('rest_delay', 0.1)
         self.debug = self.config.get('debug', False)
+        self.connection_retry_count = 0
+        self.MAX_CONNECTION_RETRIES = self.config['sterbox'].get('max_connection_retries', 5)
+        self.connection_retry_delay = self.config['sterbox'].get('connection_retry_delay', 5)
         
     def log(self, message: str):
         """Wyświetla wiadomość tylko jeśli debug jest włączony"""
@@ -53,12 +59,38 @@ class SterboxClient:
         retry_strategy = Retry(
             total=3,
             backoff_factor=0.5,
-            status_forcelist=[500, 502, 503, 504]
+            status_forcelist=[500, 502, 503, 504],
+            allowed_methods=["GET"]
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
         session.mount("http://", adapter)
         session.mount("https://", adapter)
         return session
+
+    def _reset_session(self):
+        """Resetuje sesję HTTP w przypadku problemów z połączeniem"""
+        self.log("Resetting HTTP session...")
+        self.session = self._setup_session()
+        
+    def _check_connection(self) -> bool:
+        """Sprawdza połączenie z urządzeniem i próbuje je przywrócić w razie potrzeby"""
+        try:
+            response = self.session.get(self.base_url, timeout=5)
+            if response.status_code == 200:
+                self.connection_retry_count = 0
+                return True
+        except Exception as e:
+            self.log(f"Connection check failed: {e}")
+            
+        if self.connection_retry_count < self.MAX_CONNECTION_RETRIES:
+            self.connection_retry_count += 1
+            self.log(f"Connection attempt {self.connection_retry_count} of {self.MAX_CONNECTION_RETRIES}")
+            self._reset_session()
+            time.sleep(self.connection_retry_delay)
+            return self._authenticate()
+        
+        self.log("Max connection retries exceeded")
+        return False
 
     def _setup_mqtt(self) -> mqtt.Client:
         client = mqtt.Client()
@@ -87,6 +119,7 @@ class SterboxClient:
             response = self.session.get(self.auth_url, timeout=5)
             if response.status_code == 200:
                 self.log("Successfully authenticated with Sterbox")
+                self.connection_retry_count = 0
                 return True
             else:
                 self.log(f"Authentication failed with status code: {response.status_code}")
@@ -102,6 +135,19 @@ class SterboxClient:
                 break
             self.log(f"Authentication failed, retrying in {self.auth_retry_delay} seconds...")
             time.sleep(self.auth_retry_delay)
+
+    def _handle_connection_error(self, section_name: str, error: Exception) -> bool:
+        """Obsługuje błędy połączenia i próbuje je naprawić"""
+        self.log(f"Connection error in section {section_name}: {error}")
+        
+        if isinstance(error, (ProtocolError, RequestException)):
+            if self._check_connection():
+                self.log("Connection restored successfully")
+                return True
+            else:
+                self.log("Failed to restore connection")
+                return False
+        return False
 
     def _process_value(self, value: str, query: str, varname: str) -> Optional[float]:
         value = value.strip()
@@ -161,70 +207,79 @@ class SterboxClient:
                 self.log(f"Retrying MQTT connection in {self.auth_retry_delay} seconds...")
                 time.sleep(self.auth_retry_delay)
 
-    def _query_all_sections(self) -> Dict[str, Any]:
-        """Pobiera dane ze wszystkich sekcji i zwraca spłaszczony słownik"""
-        flattened_data = {}
-        
-        for section_name, section_data in self.sections.items():
-            try:
-                # Dodaj opóźnienie przed każdym zapytaniem (oprócz pierwszego)
-                if flattened_data:  # jeśli nie jest to pierwsze zapytanie
-                    time.sleep(self.rest_delay)
+    def _query_section(self, section_name: str, section_data: dict) -> Optional[Dict[str, Any]]:
+        """Pobiera dane z pojedynczej sekcji"""
+        try:
+            request_start = time.time()
+            
+            response = self.session.get(self.base_url + section_data['query'], timeout=5)
+            
+            request_time = time.time() - request_start
+            self.log(f"REST request for {section_name} took {request_time:.3f} seconds")
+            
+            if response.status_code != 200:
+                self.log(f"Error: HTTP status code {response.status_code}")
+                if self._wait_for_authentication():
+                    return None
+                return None
                 
-                # Zmierz czas zapytania
-                request_start = time.time()
+            data_dict = self._parse_response(response.text, section_data['variables'])
+            return data_dict
                 
-                response = self.session.get(self.base_url + section_data['query'], timeout=5)
-                
-                request_time = time.time() - request_start
-                self.log(f"REST request for {section_name} took {request_time:.3f} seconds")
-                
-                if response.status_code != 200:
-                    self.log(f"Error: HTTP status code {response.status_code}")
-                    self._wait_for_authentication()
-                    return {}
-                    
-                data_dict = self._parse_response(response.text, section_data['variables'])
-                if data_dict:
-                    # Dodaj dane bezpośrednio do głównego słownika zamiast zagnieżdżać
-                    flattened_data.update(data_dict)
-                    
-            except Exception as e:
-                self.log(f"Error during data retrieval for section {section_name}: {e}")
-                return {}
-                
-        return flattened_data
+        except (ProtocolError, RequestException) as e:
+            if self._handle_connection_error(section_name, e):
+                return None
+            return None
+            
+        except Exception as e:
+            self.log(f"Error during data retrieval for section {section_name}: {e}")
+            return None
 
     def run(self):
-        """Główna zoptymalizowana pętla programu"""
+        """Zoptymalizowana główna pętla programu"""
         self.log("Starting program...")
         self._connect_mqtt()
         interval = self.config['sterbox'].get('interval', 1)
         
-        self.log(f"Program started. Reading all sections every {interval} seconds...")
-        self.log(f"REST delay between sections: {self.rest_delay} seconds")
+        self.log(f"Program started. Reading sections with {self.rest_delay}s delay between them")
+        self.log(f"Publishing combined data every {interval} seconds")
         
         # Początkowe uwierzytelnienie
         self._wait_for_authentication()
 
+        combined_data = {}
+        last_publish_time = time.time()
+
         while True:
-            start_time = time.time()
+            sections_count = len(self.sections)
             
-            # Pobierz spłaszczone dane
-            combined_data = self._query_all_sections()
+            # Iteruj przez wszystkie sekcje oprócz ostatniej
+            for i, (section_name, section_data) in enumerate(self.sections.items()):
+                section_result = self._query_section(section_name, section_data)
+                
+                if section_result:
+                    combined_data.update(section_result)
+                    self.log(f"Updated data from section {section_name}: {section_result}")
+                
+                # Zastosuj rest_delay tylko między sekcjami, nie po ostatniej sekcji
+                if i < sections_count - 1 and self.rest_delay > 0:
+                    time.sleep(self.rest_delay)
             
-            # Jeśli mamy dane, wyślij je przez MQTT
-            if combined_data:
+            current_time = time.time()
+            # Sprawdź, czy minął interval od ostatniej publikacji
+            if current_time - last_publish_time >= interval and combined_data:
                 json_data = json.dumps(combined_data)
-                # Publikuj w głównym temacie bez dopisku /all
                 self.mqtt_client.publish(self.config['sterbox']['name'], json_data)
-                self.log(f"Sent combined data: {json_data}")
+                self.log(f"Published combined data: {json_data}")
+                last_publish_time = current_time
+                combined_data = {}  # Wyczyść dane po publikacji
             
-            # Oblicz czas do następnego odpytania
-            elapsed_time = time.time() - start_time
-            sleep_time = max(0, interval - elapsed_time)
-            if sleep_time > 0:
-                time.sleep(sleep_time)
+            # Oblicz czas do następnej publikacji
+            time_to_next_publish = max(0, interval - (time.time() - last_publish_time))
+            
+            # Czekaj tylko jeśli jest to konieczne
+            if time_to_next_publish > 0:
+                time.sleep(min(time_to_next_publish, self.rest_delay))
 
 def main():
     client = SterboxClient()
