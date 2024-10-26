@@ -1,15 +1,21 @@
+# config.yaml
 mqtt:
   server: "10.1.0.25"
   port: 1883
   username: "mqtt"
   password: "mqtt1234"
+
 sterbox:
   name: "sterbox2"
   url: "10.1.0.181"
   password: "1234"
-  interval: 1
-  rest_delay: 1  # opóźnienie 1000ms między zapytaniami REST, można zmieniać
-debug: true  # ustawienie false wyłączy wyświetlanie informacji na konsoli
+  interval: 0.1  # jak często publikować dane przez MQTT (w sekundach)
+  rest_delay: 2.0  # opóźnienie między zapytaniami do różnych sekcji (w sekundach)
+  max_connection_retries: 5  # maksymalna liczba prób ponownego połączenia
+  connection_retry_delay: 5  # opóźnienie między próbami połączenia (w sekundach)
+  
+debug: true  # ustawienie true włączy wyświetlanie informacji diagnostycznych
+
 variables:
   parm1:
     tempk: "@gca?temp_k&"
