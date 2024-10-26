@@ -11,6 +11,10 @@ Poprawiona obsługa interwałów:
 Precyzyjniejsze obliczanie czasu do następnej publikacji
 Minimalizacja opóźnień między cyklami odczytu
 
+Nowe zmienne:
+rest_delay - kontroluje czas między pobieraniem kolejnych sekcji danych
+interval - kontroluje jak często całość zebranych danych jest publikowana przez MQTT
+
 v.1.0.1
 
 Główne zmiany, które zostały wprowadzone:
